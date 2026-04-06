@@ -116,7 +116,7 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.final_tag.outputs.TAG }}
-            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest  # 可选：始终推送 latest
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
             BUILD_VERSION=${{ steps.final_tag.outputs.TAG }}
           cache-from: type=gha
