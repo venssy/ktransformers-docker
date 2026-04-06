@@ -186,6 +186,7 @@ RUN conda create -n serve python=3.12 -y && conda clean --all \
 # Upgrade pip and install basic tools in serve env
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/uv \
+    . /opt/miniconda3/etc/profile.d/conda.sh && \
     conda active serve && \
     
     pip install --upgrade pip setuptools wheel html5lib six uv && \
