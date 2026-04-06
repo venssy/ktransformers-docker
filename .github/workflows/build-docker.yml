@@ -1,0 +1,135 @@
+name: Docker Build & Push to Aliyun ACR (Latest Release Tag)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      override_tag:
+        description: 'Override Docker Tag (e.g., v1.0.0)'
+        required: false
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+
+env:
+  REGISTRY: "registry.cn-hangzhou.aliyuncs.com"  # 阿里云 ACR 地址
+  NAMESPACE: "venssy"                       # ACR 命名空间
+  IMAGE_NAME: "ktransformers"                            # Docker 镜像名
+  TARGET_REPO: "kvcache-ai/ktransformers"                     # 目标仓库（格式：owner/repo）
+  DEFAULT_BRANCH: "main"
+  KEEP_LATEST: 5   # 保留最新 5 个版本（不包含 latest）
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 获取目标仓库的最新 Release 名称（如 "v1.2.3"）
+      - name: Get Latest Release Tag
+        id: get_latest_release
+        run: |
+          LATEST_RELEASE=$(curl -sSfL \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ env.TARGET_REPO }}/releases/latest" | \
+            jq -r '.tag_name')
+          
+          # 检查是否成功获取 Release 名称
+          if [[ -z "$LATEST_RELEASE" ]]; then
+            echo "Error: Failed to get latest release from ${{ env.TARGET_REPO }}"
+            exit 1
+          fi
+          
+          VERSION=$(echo "$LATEST_RELEASE" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/^v//')
+
+          if [[ -z "$VERSION" ]]; then
+            echo "Error: Failed to extract version from tag '$LATEST_RELEASE'"
+            exit 1
+          else
+            echo "Latest release version: $VERSION"
+          fi
+
+          # 获取默认分支的最新 Commit SHA
+          LATEST_COMMIT=$(curl -sSfL \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ env.TARGET_REPO }}/commits/${{ env.DEFAULT_BRANCH }}" | \
+            jq -r '.sha')
+          
+          # 检查是否成功获取
+          if [[ -z "$LATEST_COMMIT" ]]; then
+            echo "Error: Failed to get latest commit from ${{ env.TARGET_REPO }}"
+            exit 1
+          else
+            echo "Latest commit SHA: $LATEST_COMMIT"
+          fi
+
+          echo "TAG=$VERSION-$LATEST_COMMIT" >> $GITHUB_OUTPUT
+
+      # 3. 允许手动覆盖 Tag（workflow_dispatch 时）
+      - name: Override Tag (if workflow_dispatch)
+        id: override_tag
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.override_tag != '' }}
+        run: |
+          echo "Overriding tag with: ${{ inputs.override_tag }}"
+          echo "TAG=${{ inputs.override_tag }}" >> $GITHUB_OUTPUT
+
+      # 4. 最终确定 Tag（优先级：手动输入 > 最新 Release > git commit hash）
+      - name: Determine Final Tag
+        id: final_tag
+        run: |
+          if [[ "${{ steps.override_tag.outputs.TAG }}" != "" ]]; then
+            echo "Using overridden tag: ${{ steps.override_tag.outputs.TAG }}"
+            echo "TAG=${{ steps.override_tag.outputs.TAG }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ steps.get_latest_release.outputs.TAG }}" != "" ]]; then
+            echo "Using latest release tag: ${{ steps.get_latest_release.outputs.TAG }}"
+            echo "TAG=${{ steps.get_latest_release.outputs.TAG }}" >> $GITHUB_OUTPUT
+          else
+            # 如果都没有，使用 git commit hash
+            echo "Using git commit hash as fallback"
+            echo "TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+      # 5. 设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 6. 登录阿里云 ACR
+      - name: Log in to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # 7. 构建并推送 Docker 镜像
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.final_tag.outputs.TAG }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest  # 可选：始终推送 latest
+          build-args: |
+            BUILD_VERSION=${{ steps.final_tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 8. 清理旧镜像（保留最新 KEEP_LATEST 个版本）
+      - name: Clean old images using Aliyun ACR Action
+        uses: aliyun/acr-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          namespace: ${{ env.NAMESPACE }}
+          repo: ${{ env.IMAGE_NAME }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+          delete_tags: "true"
+          keep_latest: ${{ env.KEEP_LATEST }}
