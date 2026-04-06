@@ -209,10 +209,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && export SGLANG_KT_VERSION=$(python3 -c "exec(open('/workspace/ktransformers/version.py').read()); print(__version__)") \
     && echo "Installing sglang-kt v${SGLANG_KT_VERSION}" \
     && cd /workspace/sglang \
-    && uv pip install -e "python[all]" --extra-index-url https://mirrors.aliyun.com/pytorch-wheels/cu${CUINDEX}  --index-strategy unsafe-best-match \
+    && uv pip install -e "python[all]" --extra-index-url https://mirrors.aliyun.com/pytorch-wheels/cu${CUINDEX}  --index-strategy unsafe-best-match
     
 RUN FLASHINFER_CUBIN_DOWNLOAD_THREADS=${BUILD_AND_DOWNLOAD_PARALLEL} FLASHINFER_LOGGING_LEVEL=warning \
-    /opt/miniconda3/envs/serve/bin/python -m flashinfer --download-cubin \
+    /opt/miniconda3/envs/serve/bin/python -m flashinfer --download-cubin
     
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/uv \
