@@ -187,7 +187,7 @@ RUN conda create -n serve python=3.12 -y && conda clean --all \
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/uv \
     . /opt/miniconda3/etc/profile.d/conda.sh && \
-    conda active serve && \
+    conda activate serve && \
     
     pip install --upgrade pip setuptools wheel html5lib six uv && \
     
@@ -203,7 +203,7 @@ RUN git clone --depth 1 https://${GITHUB_ARTIFACTORY}/kvcache-ai/ktransformers.g
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/uv \
     . /opt/miniconda3/etc/profile.d/conda.sh \
-    && conda active serve \
+    && conda activate serve \
     
     # Install sglang-kt(version aligned with ktransformers)
     && export SGLANG_KT_VERSION=$(python3 -c "exec(open('/workspace/ktransformers/version.py').read()); print(__version__)") \
