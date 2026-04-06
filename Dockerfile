@@ -211,10 +211,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && cd /workspace/sglang \
     && uv pip install -e "python[all]" --extra-index-url https://mirrors.aliyun.com/pytorch-wheels/cu${CUINDEX}  --index-strategy unsafe-best-match \
     
-    # Download FlashInfer cubin for serve env
-    && FLASHINFER_CUBIN_DOWNLOAD_THREADS=${BUILD_AND_DOWNLOAD_PARALLEL} FLASHINFER_LOGGING_LEVEL=warning \
-    python -m flashinfer --download-cubin \
+RUN FLASHINFER_CUBIN_DOWNLOAD_THREADS=${BUILD_AND_DOWNLOAD_PARALLEL} FLASHINFER_LOGGING_LEVEL=warning \
+    /opt/miniconda3/envs/serve/bin/python -m flashinfer --download-cubin \
     
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/uv \
+    . /opt/miniconda3/etc/profile.d/conda.sh \
+    && conda activate serve \
     # Install NCCL for serve env
     && pip install nvidia-nccl-cu12==2.28.3 --force-reinstall --no-deps \
 
