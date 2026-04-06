@@ -121,15 +121,3 @@ jobs:
             BUILD_VERSION=${{ steps.final_tag.outputs.TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # 8. 清理旧镜像（保留最新 KEEP_LATEST 个版本）
-      - name: Clean old images using Aliyun ACR Action
-        uses: aliyun/acr-action@v1
-        with:
-          registry: ${{ env.REGISTRY }}
-          namespace: ${{ env.NAMESPACE }}
-          repo: ${{ env.IMAGE_NAME }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-          delete_tags: "true"
-          keep_latest: ${{ env.KEEP_LATEST }}
